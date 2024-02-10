@@ -1,0 +1,18 @@
+---
+title: "`fixest`"
+description: "Regression analysis with `fixest`"
+knitr:
+  opts_chunk:
+    results: 'hold'
+    R.options:
+      width: 120
+---
+
+[**fixest**](https://lrberge.github.io/fixest) (by Laurent Bergé) is a package 
+designed from the ground up in C++ to make running regressions fast and 
+incredibly easy. It provides built-in support for a variety of linear and 
+nonlinear models, as well as regression tables and plotting methods. 
+
+```{r, filename="R"}
+1+1
+```

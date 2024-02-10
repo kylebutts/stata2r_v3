@@ -1,0 +1,24 @@
+---
+title: "`extras`"
+
+knitr:
+  opts_chunk:
+    results: 'hold'
+    R.options:
+      width: 120
+---
+
+While we think you can get really far in R with just **data.table** and 
+**fixest**, of course these two packages don't cover everything.
+
+This page covers a small list of packages you may find especially useful when 
+getting started with R. We won't try to cover everything under the sun here. 
+Just a few places to get going. For the rest, well, that's what StackOverflow
+or your favourite search engine is for.
+
+All of the below packages have far more applications than is shown here. We'll 
+just provide one or two examples of how each can be used. Finally, don't forget 
+to install them with `install.packages('PKGNAME')` and load them with 
+`library(PKGNAME)`. The former command you only have to run once per package (or 
+as often as you want to update it); the latter whenever you want to use a 
+package in a new R session.

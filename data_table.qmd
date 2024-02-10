@@ -1,0 +1,638 @@
+---
+title: "`data.table`"
+description: "Data wrangling with `data.table`"
+knitr:
+  opts_chunk:
+    results: 'hold'
+    R.options:
+      width: 120
+---
+
+```{r}
+#| echo: false
+library(Statamarkdown) # devtools::install_github("Hemken/Statamarkdown")
+```
+
+
+[**data.table**](https://rdatatable.gitlab.io/data.table) (by Matt Dowle, Arun
+Srinivasan _et. al._) is a package written in C to make high-performance data 
+wrangling tasks a breeze. Despite being incredibly powerful, it is dependency 
+free and has a rock-solid API. **data.table** code reliably works decades apart.
+
+## Installation
+
+Before continuing, make sure that you have installed **data.table**. You only 
+have to do this once (or as often as you want to update the package).
+
+
+```{r, eval=FALSE}
+# Install from CRAN
+install.packages("data.table")
+
+# Alternatively, you can install the latest development version
+# install.packages("data.table", repos = "https://fastverse.r-universe.dev")
+```
+
+Once **data.table** is installed, don't forget to load it whenever you want to 
+use it. Unlike Stata, you have to re-load a package every time you start a new R 
+session.
+
+```{r, eval=FALSE}
+# Load data.table into our current R session
+library(data.table)
+```
+
+All of the examples in this section will use real-life 2014 New York air traffic 
+data. You can use the following commands to import the dataset into both Stata 
+and R.
+
+::::: {.column-page-right}
+::: {.split}
+```{stata, collectcode = TRUE}
+import delimited using ///
+    "https://raw.githubusercontent.com/Rdatatable/data.table/master/vignettes/flights14.csv", clear
+```
+```{r}
+library(data.table) ## Don't forget to load the library
+dat = fread('https://raw.githubusercontent.com/Rdatatable/data.table/master/vignettes/flights14.csv')
+```
+:::
+:::::
+
+The data looks like this
+
+```{r, echo=FALSE}
+library(kableExtra)
+dat |> head() |> kbl() |> kable_styling()
+```
+
+
+## Introduction
+
+The [**data.table**](https://rdatatable.gitlab.io/data.table) package centers
+around _data.tables_, which are highly efficient data frames that can be
+manipulated using the package's concise syntax. For example, say we have a
+data.table called `dat` (you can call it whatever you want). Then we can
+manipulate it by putting arguments into its square brackets, i.e. `dat[]`. The
+three main components of a **data.table** operation are `i`, `j`, and `by`,
+which go in the order **`dat[i, j, by]`**. Note you don't have to specify the
+latter two if you're not currently using them.
+
+- **`i`**, the first component, selects the rows of the data.table that you'll be working with, like how in Stata the `if` or `in` command options let you refer to certain rows.
+- **`j`**, the second component, both selects and operates on the columns of the data.table, like how in Stata the `keep` or `drop` commands select specific columns of your data, or how `generate` or `replace` create or modify columns in your data.
+- **`by`**, the third component, gives the variable(s) designating groups that you'll be doing your calculations within, like how in Stata you can precede a command with `bysort`.
+
+**data.table** uses these simple components very flexibly. The upshot is that 
+you can perform complicated operations in a single line of concise **data.table** 
+code, which may have required multiple commands in other languages or libraries 
+to accomplish. But even if you aren't doing anything fancy, **data.table** has 
+you covered with a stable set of functions that can be deployed on virtually 
+any data wrangling task.
+
+Like Stata, **data.table** also provides some special shortcut symbols for 
+common operations. For example, `_N` in Stata is equivalent to `.N` in 
+**data.table**, while `.(x1, x2)` is short for `list(x1, x2)`. We'll see more 
+examples in cheatsheat that follows. But we do want to quickly highlight one 
+special symbol in particular: **`.SD`** refers to the (**S**)ubset of (**D**)ata you're 
+working with. This can be used to do complex within-group calculations when you 
+have `by` specified. But more generally it's a way to perform operations on lots 
+of columns with one line of code. By default, `.SD` refers to all columns in the
+dataset (excepting those in `by`). But you can specify the columns you want with 
+the `.SDcols` argument. Again, we'll see a bunch of examples below.
+
+Finally, **data.table** is extremely fast. It has long set the standard for 
+in-memory data wrangling [benchmarks](https://h2oai.github.io/db-benchmark) 
+across a variety of libraries and languages. You will likely see an order(s) of 
+magnitude performance difference as you compare the code chunks below. As a 
+bonus for Stata users, who are used to operations changing a single dataset in 
+memory, many **data.table** operations can be done _in-place_. This means that 
+you don't have to (re)assign the result to a new **data.table**. In-place 
+modifications are also very efficient, since they will only affect the parts 
+you're actually changing, without wasting memory and time on the parts that 
+aren't being changed. Any time in the below cheat sheet you see a function with 
+the word `set` in it, or the `:=` operator, that's an in-place operation.
+
+                     
+## Data I/O
+
+Like Stata's `.dta` file format, R has its own native `.rds` storage format.
+(See also the [**fst**](http://www.fstpackage.org/) package.) However,
+we generally recommend that users avoid native—especially proprietary—data types
+since they hamper interoperability and reproducibility. We'll hence concentrate
+on common open-source file types below. We'll make an exception for `.dta` given
+our target audience, but we still recommend avoiding it if possible. Note that
+all of the examples in this section will assume generic datasets.
+
+### Read and write .csv
+
+Single file.
+
+::::: {.column-page-right}
+::: {.split}
+```{stata, eval=FALSE}
+import delimited using "file.csv", clear 
+* import delimited using "file.csv", clear colrange(1:2)
+* ?
+
+export delimited using "file.csv", replace
+```
+```{r, eval=FALSE}
+dat = fread("file.csv")
+# dat = fread("file.csv", select=c("col1","col2")) # or select=1:2
+# dat = fread("file.csv", drop=c("col3","col4")) # or drop=3:4
+
+fwrite(dat, "file.csv")
+```
+:::
+:::::
+
+Read many files and append them together.
+
+::::: {.column-page-right}
+::: {.split}
+```{stata, eval=FALSE}
+local files: dir "data/" files "*.csv"
+tempfile mytmpfile
+save `mytmpfile', replace empty
+foreach x of local files {
+	qui: import delimited "data/`x'", case(preserve) clear
+	append using `mytmpfile'
+	save `mytmpfile', replace
+}
+```
+```{r, eval=FALSE}
+files = dir("data/", pattern=".csv", full.names=TRUE)
+dat = rbindlist(lapply(files, fread))
+```
+:::
+:::::
+
+### Read and write .dta
+
+::::: {.column-page-right}
+::: {.split}
+
+_Note: `.dta` is Stata's native (proprietary) filetype._
+
+
+
+_Note: These commands require the [**haven**](https://haven.tidyverse.org/) package._
+
+:::
+:::::
+
+Single file.
+
+::::: {.column-page-right}
+::: {.split}
+```{stata, eval=FALSE}
+use "file.dta", clear
+* use "file.dta", keep(var1-var4) clear
+
+
+save "file.dta", replace
+```
+```{r, eval=FALSE}
+dat = haven::read_dta("file.dta")
+# dat = haven::read_dta("file.dta", col_select=var1:var4)
+setDT(dat) # i.e. Set as a data.table
+ 
+haven::write_dta(dat, "file.dta")
+```
+:::
+:::::
+
+Read many files and append them together.
+
+::::: {.column-page-right}
+::: {.split}
+```{stata, eval=FALSE}
+cd "`c(pwd)'/data"
+append using `: dir "." files "*.dta"' 
+```
+```{r, eval=FALSE}
+files = dir("data/", pattern=".dta", full.names=TRUE)
+dat = rbindlist(lapply(files, haven::read_dta))
+```
+:::
+:::::
+                     
+### Read and write .parquet
+
+::::: {.column-page-right}
+::: {.split}
+
+_Note: Stata currently has limited support for parquet files (and Linux/Unix only)._
+
+
+
+_Note: These commands require the [**arrow**](https://arrow.apache.org/docs/r/) package._
+
+:::
+:::::
+
+::::: {.column-page-right}
+::: {.split}
+```{stata, eval=FALSE}
+* See: https://github.com/mcaceresb/stata-parquet
+```
+```{r, eval=FALSE}
+files = dir(pattern = ".parquet") 
+dat = rbindlist(lapply(files, arrow::read_parquet))
+# dat = rbindlist(lapply(files, arrow::read_parquet, col_select=1:10))
+
+write_parquet(dat, sink = "file.parquet")
+```
+:::
+:::::
+
+### Create a dataset _de novo_
+
+Random numbers. Note that the random seeds will be different across the two
+languages.
+
+::::: {.column-page-right}
+::: {.split}
+```{stata, eval=FALSE}
+clear
+set seed 123
+set obs 10
+gen x = _n
+gen y = rnormal()
+gen z = runiform()
+list in 1/5
+```
+```{r, eval=FALSE}
+set.seed(123)
+d = data.table(x = 1:10, y = rnorm(10), z = runif(10))
+
+
+
+
+head(d)
+```
+:::
+:::::
+
+Some convenience functions for specific data types.
+
+::::: {.column-page-right}
+::: {.split}
+```{stata}
+* All combinations of two vectors (i.e. a cross-join)
+clear
+set obs 10
+gen id = _n in 1/2
+gen yr = 2000 + _n
+fillin id yr
+drop if id == . | yr == .
+list in 1/5
+```
+```{r}
+# All combinations of two vectors (i.e. a cross-join)
+d = CJ(id = 1:2, yr = 2001:2010)
+
+
+
+
+
+head(d)
+```
+```{stata, eval=FALSE}
+* Datetimes
+* ?
+* ?
+```
+
+```{r, eval=FALSE}
+# Datetime
+dts = Sys.time() + 0:10 # time right now ++10 seconds
+d = IDateTime(dts)
+```
+:::
+:::::
+              
+## Order
+
+           
+### Sort rows
+
+::::: {.column-page-right}
+::: {.split}
+```{stata}
+sort air_time 
+list in 1/5
+```
+```{r}
+setorder(dat, air_time)
+head(dat)
+```
+```{stata}
+sort air_time dest 
+list in 1/5
+```
+```{r} 
+setorder(dat, air_time, dest) 
+head(dat)
+```
+```{stata}
+gsort -air_time
+list in 1/5
+```
+```{r}
+setorder(dat, -air_time)
+head(dat)
+```
+:::
+:::::
+           
+### Sort columns
+
+::::: {.column-page-right}
+::: {.split}
+```{stata}
+order month day
+list in 1/5
+```
+```{r}
+setcolorder(dat, c('month','day'))
+head(dat)
+```
+:::
+:::::
+           
+### Rename columns
+
+::::: {.column-page-right}
+::: {.split}
+```{stata, eval=FALSE}
+* rename (old) (new) 
+
+rename arr_delay arrival_delay 
+rename (carrier origin) (carrier_code origin_code) 
+rename arr_* arrival_*
+```
+```{r, eval=FALSE}
+# setnames(dat, old = ..., new = ...) 
+
+setnames(dat, 'arr_delay', 'arrival_delay') 
+setnames(dat, c('carrier','origin'), c('carrier_code','origin_code')) 
+setnames(dat, gsub('arr_', 'arrival_', names(dat)))
+```
+:::
+:::::
+                     
+                     
+## Subset
+
+In newer versions of Stata, it's possible to keep multiple datasets in memory,
+or "frames" as Stata calls them. But this still requires extra steps that
+would be unusual to users of other languages. 
+In contrast, keeping multiple datasets in memory is
+extremely common in R. Moreover, subsetting and collapsing operations don't
+overwrite your original dataset. The upshot is that you don't need to wrap 
+everything in `preserve/restore`. However, it also means that you'll need to 
+(re)assign your subsetted/collapsed data if you want to use it again later. E.g.
+`dat1 = dat[origin=='LGA']`.
+
+           
+### Subset rows
+
+::::: {.column-page-right}
+::: {.split}
+
+<div>
+_Reminder: You'll need to use `preserve/restore` if you want to retain the
+original dataset in the examples that follow._
+
+```{stata}
+keep in 1/200 
+```
+</div>
+<div>
+_Reminder: You'll need to (re)assign the subsetted dataset if you want to use it
+later, e.g. `dat1 = dat[...]`._
+
+```{r}
+dat[1:200] 
+```
+</div>
+
+```{stata}
+keep if day > 5 & day < 10
+```
+```{r}
+dat[day > 5 & day < 10] 
+```
+
+```{stata}
+keep if inrange(day,5,10)
+```
+```{r}
+dat[between(day,5,10)] # Or: dat[day %in% 5:10] 
+```
+
+```{stata}
+keep if origin == "LGA"
+```
+```{r}
+dat[origin=='LGA']
+```
+
+```{stata}
+keep if regexm(origin,"LGA") 
+```
+```{r}
+dat[origin %like% 'LGA'] 
+```
+
+```{stata}
+keep if inlist(month,3,4,11,12) 
+```
+```{r}
+dat[month %in% c(3,4,11,12)] 
+```
+
+```{stata}
+keep if inlist(origin,"JFK","LGA") 
+```
+```{r}
+dat[origin %chin% c("JFK","LGA")] # %chin% is a fast %in% for (ch)aracters 
+```
+
+```{stata}
+drop if month == 1
+```
+```{r}
+dat[month!=1]
+```
+:::
+:::::
+           
+### Subset columns
+
+::::: {.column-page-right}
+::: {.split}
+
+<div>
+_Reminder: You'll need to use `preserve/restore` if you want to retain the 
+original dataset in the examples that follow._
+
+```{stata}
+keep month day carrier
+```
+</div>
+<div>
+_Reminder: You'll need to (re)assign the subsetted dataset if you want to use it
+later, e.g. `dat1 = dat[...]`._
+
+```{r}
+dat[, .(month, day, carrier)] 
+```
+</div>
+
+<div>&nbsp;</div>
+
+```{r, eval = FALSE}
+dat[, list(month, day, carrier)]    # another option
+dat[, c('month', 'day', 'carrier')] # and another
+```
+:::
+:::::
+
+::::: {.column-page-right}
+::: {.split}
+```{stata}
+keep year-arr_delay
+```
+```{r}
+dat[, year:arr_delay] 
+```
+```{stata}
+keep *_delay
+```
+```{r}
+dat[, .SD, .SDcols=patterns('*_delay')]
+```
+:::
+:::::
+
+
+::::: {.column-page-right}
+::: {.split}
+```{stata}
+drop origin dest 
+
+```
+```{r, eval=c(-2)}
+dat[, -c('origin', 'dest')]
+dat[, c('origin', 'dest') := NULL] # same, but in-place 
+```
+```{stata}
+ds, has(type string) 
+drop `r(varlist)' 
+```
+```{r}
+# Matches the two lines on the left:
+dat[, .SD, .SDcols=!is.character] 
+```
+```{stata}
+ds, has(type int) 
+keep `r(varlist)'
+```
+```{r}
+# Matches the two lines on the left: 
+dat[, .SD, .SDcols=is.integer]
+```
+:::
+:::::
+           
+          
+### Subset rows and columns
+
+::::: {.column-page-right}
+::: {.split}
+
+_Reminder: You'll need to use `preserve/restore` if you want to retain the
+original dataset in the examples that follow._
+
+_Reminder: You'll need to (re)assign the subsetted dataset if you want to use it
+later, e.g. `dat1 = dat[...]`._
+
+```{stata}
+keep if origin == "LGA"
+keep month day carrier
+```
+```{r}
+# Matches the two lines on the left:
+dat[origin=="LGA", .(month, day, carrier)]
+```
+:::
+:::::
+           
+### Drop duplicates
+
+::::: {.column-page-right}
+::: {.split}
+
+_Reminder: You'll need to use `preserve/restore` if you want to retain the
+original dataset in the examples that follow._
+
+_Reminder: You'll need to (re)assign the subsetted dataset if you want to use it
+later, e.g. `dat1 = dat[...]`._
+
+```{stata}
+duplicates drop
+```
+```{r}
+unique(dat)
+```
+```{stata}
+duplicates drop month day carrier, force
+```
+```{r}
+unique(dat, by = c('month', 'day', 'carrier'))
+```
+:::
+:::::
+           
+### Drop missing
+
+::::: {.column-page-right}
+::: {.split}
+<div>
+_Reminder: You'll need to use `preserve/restore` if you want to retain the
+original dataset in the examples that follow._
+
+```{stata}
+keep if !missing(dest)
+```
+</div>
+<div>
+_Reminder: You'll need to (re)assign the subsetted dataset if you want to use it
+later, e.g. `dat1 = dat[...]`._
+
+```{r}
+dat[!is.na(dest)]
+```
+</div>
+
+```{stata}
+* Requires: ssc inst missings
+missings dropvars, force 
+```
+```{r}
+na.omit(dat) 
+```
+
+```{stata}
+missings air_time dest, force 
+```
+```{r}
+na.omit(dat, cols = c('air_time', 'dest')) 
+# dat[!is.na(air_time) & !is.na(dest)] # same
+```
+:::
+:::::
+                     
+                     

@@ -1,0 +1,72 @@
+<div class="toc-actions" id="output-code-toggler">
+	<ul>
+		<li>
+			<div class="toggle form-check">
+				<input
+					class="form-check-input"
+					type="checkbox"
+					checked
+					id="toggle-output-checkbox"
+					style="margin-right: 0.4em; font-size: 0.8rem"
+				/>
+				<label class="form-check-label" for="toggle-code-checkbox"
+					>Show Output</label
+				>
+			</div>
+		</li>
+	</ul>
+</div>
+
+<script>
+	window.document.addEventListener("DOMContentLoaded", function (event) {
+		const outputToggler = window.document.getElementById(
+			"output-code-toggler"
+		)
+		const hasTOC = !(
+			window.document.querySelector("#quarto-margin-sidebar #TOC") === null
+		)
+		const hasOutputCells =
+			document.querySelectorAll(".cell > .cell-output").length > 0
+
+		// Delete if there are no source code cells
+		if (!hasOutputCells) {
+			outputToggler.remove()
+			return
+		}
+
+		// Create TOC if it doesn't exist
+		if (!hasTOC) {
+			const tocElement = window.document.createElement("nav")
+			tocElement.id = "TOC"
+			tocElement.setAttribute("role", "doc-toc")
+			tocElement.classList.add("toc-active")
+			window.document
+				.querySelector("#quarto-margin-sidebar")
+				.appendChild(tocElement)
+		}
+
+		// Move into `#TOC`
+		window.document
+			.querySelector("#quarto-sidebar #TOC")
+			.appendChild(outputToggler)
+
+		// Make toggle interactive
+		function toggleCellOutputDivs() {
+			const cellOutputDivs = document.querySelectorAll(".cell > .cell-output")
+			const toggleCodeCheckbox = document.getElementById("toggle-output-checkbox")
+
+			for (let i = 0; i < cellOutputDivs.length; i++) {
+				if (toggleCodeCheckbox.checked) {
+					cellOutputDivs[i].classList.remove("hidden")
+				} else {
+					cellOutputDivs[i].classList.add("hidden")
+				}
+			}
+		}
+
+		const toggleOutputCheckbox = document.getElementById("toggle-output-checkbox")
+		if (toggleOutputCheckbox) {
+			toggleOutputCheckbox.addEventListener("change", toggleCellOutputDivs)
+		}
+	})
+</script>
