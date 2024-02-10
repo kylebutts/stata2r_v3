@@ -260,16 +260,10 @@ set obs 10
 gen x = _n
 gen y = rnormal()
 gen z = runiform()
-list in 1/5
 ```
 ```{r, eval=FALSE}
 set.seed(123)
 d = data.table(x = 1:10, y = rnorm(10), z = runif(10))
-
-
-
-
-head(d)
 ```
 :::
 :::::
@@ -278,7 +272,7 @@ Some convenience functions for specific data types.
 
 ::::: {.column-page-right}
 ::: {.split}
-```{stata}
+```{stata, eval=FALSE}
 * All combinations of two vectors (i.e. a cross-join)
 clear
 set obs 10
@@ -286,24 +280,17 @@ gen id = _n in 1/2
 gen yr = 2000 + _n
 fillin id yr
 drop if id == . | yr == .
-list in 1/5
 ```
-```{r}
+```{r, eval=FALSE}
 # All combinations of two vectors (i.e. a cross-join)
 d = CJ(id = 1:2, yr = 2001:2010)
-
-
-
-
-
-head(d)
 ```
+
 ```{stata, eval=FALSE}
 * Datetimes
 * ?
 * ?
 ```
-
 ```{r, eval=FALSE}
 # Datetime
 dts = Sys.time() + 0:10 # time right now ++10 seconds
